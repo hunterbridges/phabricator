@@ -70,6 +70,9 @@ class ManiphestTaskEditController extends ManiphestController {
     $errors = array();
     $e_title = true;
 
+    $aux_fields = id(new ManiphestDefaultTaskExtensions())
+      ->getAuxiliaryFieldSpecifications();
+
     if ($request->isFormPost()) {
 
       $changes = array();
@@ -101,6 +104,24 @@ class ManiphestTaskEditController extends ManiphestController {
       if (!strlen($new_title)) {
         $e_title = 'Required';
         $errors[] = 'Title is required.';
+      }
+
+      foreach ($aux_fields as $aux_field) {
+        $aux_field->setValueFromRequest($request);
+
+        if ($aux_field->isRequired() && !strlen($aux_field->getValue())) {
+          $errors[] = $aux_field->getLabel() . ' is required.';
+          $aux_field->setError('Required');
+        }
+
+        if (strlen($aux_field->getValue())) {
+          try {
+            $aux_field->validate();
+          } catch (Exception $e) {
+            $errors[] = $e->getMessage();
+            $aux_field->setError('Invalid');
+          }
+        }
       }
 
       if (!$errors) {
@@ -154,7 +175,15 @@ class ManiphestTaskEditController extends ManiphestController {
           $editor = new ManiphestTransactionEditor();
           $editor->applyTransactions($task, $transactions);
         }
-
+        
+        // TODO: Capture auxiliary field changes in a transaction
+        foreach ($aux_fields as $aux_field) {
+          $task->setAuxiliaryAttribute(
+            $aux_field->getAuxiliaryKey(),
+            $aux_field->getValueForStorage()
+          );
+        }
+        
         return id(new AphrontRedirectResponse())
           ->setURI('/T'.$task->getID());
       }
@@ -280,6 +309,30 @@ class ManiphestTaskEditController extends ManiphestController {
               ),
               'Create New Project'))
           ->setDatasource('/typeahead/common/projects/'));
+
+    $attributes = $task->loadAuxiliaryAttributes();
+    $attributes = mpull($attributes, 'getValue', 'getName');
+
+    foreach ($aux_fields as $aux_field)
+    {
+      if (!$request->isFormPost()) {
+        $attribute = null;
+
+        if (isset($attributes[$aux_field->getAuxiliaryKey()])) {
+          $attribute = $attributes[$aux_field->getAuxiliaryKey()];
+          $aux_field->setValueFromStorage($attribute);
+        }
+      }
+
+      if ($aux_field->isRequired() && !$aux_field->getError()
+        && !$aux_field->getValue()) {
+        $aux_field->setError(true);
+      }
+
+      $aux_control = $aux_field->renderControl();
+
+      $form->appendChild($aux_control);
+    }
 
     require_celerity_resource('aphront-error-view-css');
 

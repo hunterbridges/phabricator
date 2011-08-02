@@ -175,7 +175,7 @@ class ManiphestTaskEditController extends ManiphestController {
           $editor = new ManiphestTransactionEditor();
           $editor->applyTransactions($task, $transactions);
         }
-        
+
         // TODO: Capture auxiliary field changes in a transaction
         foreach ($aux_fields as $aux_field) {
           $task->setAuxiliaryAttribute(
@@ -183,7 +183,7 @@ class ManiphestTaskEditController extends ManiphestController {
             $aux_field->getValueForStorage()
           );
         }
-        
+
         return id(new AphrontRedirectResponse())
           ->setURI('/T'.$task->getID());
       }
